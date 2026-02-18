@@ -1,28 +1,46 @@
 package com.example.langchain4j.agents;
 
+import dev.langchain4j.agentic.Agent;
+import dev.langchain4j.agentic.AgenticServices;
+import dev.langchain4j.agentic.declarative.SequenceAgent;
 import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.DocumentSplitter;
 import dev.langchain4j.data.document.splitter.DocumentSplitters;
 import dev.langchain4j.data.segment.TextSegment;
-import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
-import dev.langchain4j.model.ollama.OllamaChatModel;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.rag.content.retriever.EmbeddingStoreContentRetriever;
-import dev.langchain4j.service.AiServices;
+import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.service.V;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
 
-import java.time.Duration;
 import java.util.List;
 
 import static com.example.langchain4j.agents.OllamaModelFactory.embeddingModel;
 
-public class AgentWithRAG {
+public class AgenticWithRAGExample {
 
-    interface Assistant {
-        String chat(String message);
+    public interface PromptRefiner {
+        @Agent(description = "Refines the user's question to be more suitable for retrieval augmented generation", outputKey = "refinedQuestion")
+        @UserMessage("Refine the following question to be more specific and suitable for searching in a knowledge base: {{question}}")
+        String refine(@V("question") String question);
+    }
+
+    public interface RagAssistant {
+        @Agent(description = "A helpful assistant that answers questions based on the provided documents")
+        @UserMessage("{{refinedQuestion}}")
+        String chat(@V("refinedQuestion") String refinedQuestion);
+    }
+
+    public interface RAGWorkflow {
+        @SequenceAgent(
+                name = "RAGWorkflow",
+                description = "Refines the question and then answers it using RAG",
+                subAgents = {PromptRefiner.class, RagAssistant.class}
+        )
+        String process(@V("question") String question);
     }
 
     public static void main(String[] args) {
@@ -47,24 +65,20 @@ public class AgentWithRAG {
                 .build();
 
         // 5. Create the Chat Model
-        ChatModel chatModel = OllamaChatModel.builder()
-                .baseUrl("http://localhost:11434")
-                .modelName("llama3")
-                .timeout(Duration.ofMinutes(2))
-                .build();
+        ChatModel chatModel = OllamaModelFactory.create();
 
-        // 6. Create the AI Service (Agent) with RAG
-        Assistant assistant = AiServices.builder(Assistant.class)
-                .chatModel(chatModel)
-                .contentRetriever(contentRetriever)
-                .chatMemory(MessageWindowChatMemory.withMaxMessages(10))
-                .build();
+        // 6. Create the Agentic Service with RAG
+        RAGWorkflow workflow = AgenticServices.createAgenticSystem(RAGWorkflow.class, chatModel, context -> {
+            if (context.agentServiceClass().equals(RagAssistant.class)) {
+                context.agentBuilder().contentRetriever(contentRetriever);
+            }
+        });
 
         // 7. Interact with the Agent
         String question = "What is LangChain4j?";
         System.out.println("User: " + question);
 
-        String answer = assistant.chat(question);
+        String answer = workflow.process(question);
         System.out.println("Assistant: " + answer);
     }
 }

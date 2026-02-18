@@ -11,13 +11,13 @@ public class AgenticParallelExample {
 
     public interface PositiveCritic {
         @Agent(description = "Gives a positive review of the movie", outputKey = "review")
-        @UserMessage("Give a positive review of the movie {{movie}}")
+        @UserMessage("Give a positive review (only 2-3 sentences) of the movie {{movie}}")
         String review(@V("movie") String movie);
     }
 
     public interface NegativeCritic {
         @Agent(description = "Gives a negative review of the movie", outputKey = "review")
-        @UserMessage("Give a negative review of the movie {{movie}}")
+        @UserMessage("Give a negative review (only 2-3 sentences) of the movie {{movie}}")
         String review(@V("movie") String movie);
     }
 
